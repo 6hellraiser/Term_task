@@ -13,10 +13,21 @@ Keys:
  2 - toggle glitch
 
 '''
+glob_list = []
+c = []
+
+def multidim_intersect(arr1, arr2):
+    arr1_view = arr1.view([('',arr1.dtype)]*arr1.shape[1])
+    arr2_view = arr2.view([('',arr2.dtype)]*arr2.shape[1])
+    intersected = np.intersect1d(arr1_view, arr2_view)
+    return intersected.view(arr1.dtype).reshape(-1, arr1.shape[1])
 
 def draw_flow(img, flow, step=16):
+    global glob_list
+    global c
+    
     h, w = img.shape[:2]
-    mat = np.zeros((h,w), np.uint8)    
+    mat = np.zeros((h/step,w/step), np.uint8)
     y, x = np.mgrid[step/2:h:step, step/2:w:step].reshape(2,-1)
     fx, fy = flow[y,x].T
     lines = np.vstack([x, y, x+fx, y+fy]).T.reshape(-1, 2, 2)
@@ -26,14 +37,26 @@ def draw_flow(img, flow, step=16):
     font = cv2.FONT_HERSHEY_SIMPLEX    
     for (x1, y1), (x2, y2) in lines:
         res = math.sqrt((x1-x2)**2+(y1-y2)**2)
-        if res > 5:
-            #cv2.circle(vis, (x1, y1), 3, (0, 255, 0), -1)           
-            mat[y1,x1] = 255;
-        #else:            
+        if res > 10:
+            #cv2.circle(vis, (x1, y1), 3, (0, 255, 0), -1)
+           # cv2.putText(vis,'0',(x1,y1), font, 0.3,(0,255,0),2,-1)
+            mat[y1/step,x1/step] = 255
+        #else:
+            #cv2.circle(vis, (x1, y1), 1, (0, 255, 0), -1)
             #cv2.putText(vis,'1',(x1,y1), font, 0.3,(0,255,0),2,-1)
-    c,h = cv2.findContours( mat.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-    c1 = [cv2.approxPolyDP(cnt, 3, True) for cnt in c]
-    cv2.drawContours(vis, c1, (-1, 3)[1 <= 0], (0,255,0), 3, cv2.CV_AA, h, abs(1))
+
+    one_more_list = []
+    glob_list = c
+    c,h = cv2.findContours(mat.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)    
+    if len(glob_list) > 0 and len(c) > 0:       
+        ar =  multidim_intersect(glob_list[0],c[0])        
+        if len(ar) > 0:            
+            one_more_list.append(c[0])
+            c1 = [cv2.approxPolyDP(cnt*step, 3, True) for cnt in c]
+            cv2.drawContours(vis, c1, (-1, 3)[1 <= 0], (0,255,0), 3, cv2.CV_AA, h, abs(1))
+     
+    #c1 = [cv2.approxPolyDP(cnt*step, 3, True) for cnt in c]
+    #cv2.drawContours(vis, c1, (-1, 3)[1 <= 0], (0,255,0), 3, cv2.CV_AA, h, abs(1))
     return vis
 
 def draw_hsv(flow):
@@ -66,8 +89,10 @@ if __name__ == '__main__':
     show_hsv = False
     show_glitch = False
     cur_glitch = prev.copy()
-
-    while True:
+    
+    u = 0
+   # while True:
+    while u < 5:
         ret, img = cam.read()
         gray = cv2.cvtColor(img, cv.CV_BGR2GRAY)
         flow = cv2.calcOpticalFlowFarneback(prevgray, gray, 0.5, 3, 15, 3, 5, 1.2, 0)
@@ -91,3 +116,4 @@ if __name__ == '__main__':
             if show_glitch:
                 cur_glitch = img.copy()
             print 'glitch is', ['off', 'on'][show_glitch]
+        u+=1
